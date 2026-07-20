@@ -1,0 +1,82 @@
+# Cheops.mtl — 9 materials, 5 textures
+# Blinn materials → textured, Lambert materials → flat colour
+
+# ── BLINN (textured) ──────────────────────────────────────────────
+
+newmtl blinn3SG
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.300 0.300 0.300
+Ns 50.0
+d  1.0
+illum 2
+map_Kd Cheops-MappedTexture1.jpg
+
+newmtl blinn1SG1
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.300 0.300 0.300
+Ns 50.0
+d  1.0
+illum 2
+map_Kd Cheops-MappedTexture2.jpg
+
+newmtl blinn1SG
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.500 0.500 0.500
+Ns 80.0
+d  1.0
+illum 2
+map_Kd Cheops-SolarPanels_FrontBackSides.jpg
+
+newmtl initialShadingGroup
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.200 0.200 0.200
+Ns 50.0
+d  1.0
+illum 2
+map_Kd Cheops-MappedTexture3.jpg
+
+# ── LAMBERT (flat colour, no texture) ────────────────────────────
+
+newmtl lambert2SG
+Ka 0.200 0.200 0.200
+Kd 0.500 0.500 0.500
+Ks 0.000 0.000 0.000
+Ns 10.0
+d  1.0
+illum 1
+
+newmtl lambert3SG
+Ka 0.200 0.200 0.200
+Kd 0.450 0.450 0.450
+Ks 0.000 0.000 0.000
+Ns 10.0
+d  1.0
+illum 1
+
+newmtl lambert4SG
+Ka 0.150 0.150 0.150
+Kd 0.300 0.300 0.300
+Ks 0.000 0.000 0.000
+Ns 10.0
+d  1.0
+illum 1
+
+newmtl lambert5SG
+Ka 0.300 0.300 0.300
+Kd 0.800 0.800 0.800
+Ks 0.000 0.000 0.000
+Ns 10.0
+d  1.0
+illum 1
+
+newmtl lambert7SG
+Ka 0.200 0.200 0.200
+Kd 0.500 0.500 0.500
+Ks 0.000 0.000 0.000
+Ns 10.0
+d  1.0
+illum 1
