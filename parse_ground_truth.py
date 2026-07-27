@@ -4,30 +4,24 @@ parse_ground_truth.py
 Parses Kubric simulation outputs into TUM-format ground truth files.
 
 Outputs:
-    camera_ground_truth.txt  — camera pose in WORLD frame
-    object_ground_truth.txt  — object pose in CAMERA frame
-    times.txt                — timestamps matching each frame
+    pose_ground_truth.txt         — camera pose in WORLD frame
+    object_pose_ground_truth_unreliable.txt  — object pose in CAMERA frame (derived)
+    object_pose_ground_truth.txt — object pose in WORLD frame  (primary GT source)
+    times.txt                     — timestamps matching each frame
 
 TUM Format (per line):
     timestamp tx ty tz qx qy qz qw
 
-Quaternion Conventions (verified by cross-checking both files):
-    metadata.json  camera.quaternions[i]     → [w, x, y, z]  WORLD frame
-    metadata.json  instances.quaternions[i]  → [x, y, z, w]  WORLD frame  (scipy)
-    pose_labels.json  q_obj2cam             → [x, y, z, w]  CAMERA frame (scipy)
+Quaternion Conventions (verified against metadata.json):
+    metadata.json  camera.quaternions[i]            → [w, x, y, z]  WORLD frame
+    metadata.json  instances[0].quaternions[i]      → [w, x, y, z]  WORLD frame
+    pose_labels.json  q_obj2cam                     → [x, y, z, w]  CAMERA frame (scipy)
 
 Usage:
     python parse_ground_truth.py \\
         --metadata   path/to/metadata.json \\
         --pose_labels path/to/pose_labels.json \\
         --output_dir path/to/output/
-
-    # or with explicit frame rate override
-    python parse_ground_truth.py \\
-        --metadata metadata.json \\
-        --pose_labels pose_labels.json \\
-        --output_dir ./gt \\
-        --frame_rate 24
 """
 
 import os
@@ -49,47 +43,34 @@ def load_json(path: str) -> dict:
 def format_tum_line(timestamp: float,
                     tx: float, ty: float, tz: float,
                     qx: float, qy: float, qz: float, qw: float) -> str:
-    """
-    Format a single TUM ground truth line.
-    TUM format: timestamp tx ty tz qx qy qz qw
-    Uses high-precision float formatting to avoid rounding errors.
-    """
     return (f"{timestamp:.10f} "
             f"{tx:.10f} {ty:.10f} {tz:.10f} "
             f"{qx:.10f} {qy:.10f} {qz:.10f} {qw:.10f}")
 
 
-def write_tum_file(output_path: str,
-                   lines: list,
-                   header_comment: str = ""):
-    """
-    Write a TUM-format ground truth file with an optional comment header.
-    Comment lines start with '#' and are ignored by TUM evaluation tools.
-    """
+def write_tum_file(output_path: str, lines: list, header_comment: str = ""):
     with open(output_path, "w") as f:
-        # Header comments
         if header_comment:
             for line in header_comment.strip().split("\n"):
                 f.write(f"# {line}\n")
         f.write("# timestamp tx ty tz qx qy qz qw\n")
-
-        # Data lines
         for line in lines:
             f.write(line + "\n")
-
     print(f"  Written: {output_path}  ({len(lines)} frames)")
 
 
 def write_times_file(output_path: str, timestamps: list):
-    """
-    Write times.txt — one timestamp per line, matching frame order.
-    This is used by algorithms that need a separate timing file.
-    """
     with open(output_path, "w") as f:
         f.write("# timestamp\n")
         for ts in timestamps:
             f.write(f"{ts:.10f}\n")
     print(f"  Written: {output_path}  ({len(timestamps)} timestamps)")
+
+
+def check_unit_quaternion(q: np.ndarray, label: str, frame_idx: int):
+    norm = np.linalg.norm(q)
+    if abs(norm - 1.0) > 1e-4:
+        print(f"  [WARN] {label} quaternion frame {frame_idx} norm={norm:.6f} (expected 1.0)")
 
 
 # =============================================================================
@@ -98,39 +79,31 @@ def write_times_file(output_path: str, timestamps: list):
 
 def parse_camera_poses(metadata: dict, frame_rate: float) -> tuple:
     """
-    Parse camera poses from metadata.json.
+    Parse camera poses from metadata.json camera section.
 
-    Camera is FIXED in Kubric (static observer), so all frames have
-    the same world-frame position and orientation.
-
-    Quaternion convention in metadata.json camera section: [w, x, y, z]
-    Output convention (TUM):                               [qx, qy, qz, qw]
+    Camera is FIXED in this dataset — all frames have identical pose.
+    Quaternion convention: [w, x, y, z] → reordered to TUM [qx, qy, qz, qw]
+    Position units: metres (world frame)
 
     Returns:
-        timestamps (list of float)
-        tum_lines  (list of str)
+        timestamps (list[float])
+        tum_lines  (list[str])
     """
-    cam = metadata["camera"]
-    positions   = cam["positions"]    # list of [tx, ty, tz], world frame
-    quaternions = cam["quaternions"]  # list of [w, x, y, z], world frame
+    cam         = metadata["camera"]
+    positions   = cam["positions"]    # list of [tx, ty, tz]
+    quaternions = cam["quaternions"]  # list of [w, x, y, z]
 
-    num_frames = len(positions)
     timestamps = []
     tum_lines  = []
 
-    for i in range(num_frames):
-        ts = i / frame_rate
-
+    for i in range(len(positions)):
+        ts       = i / frame_rate
         tx, ty, tz = positions[i]
 
-        # metadata camera quaternion: [w, x, y, z] → reorder to TUM [qx, qy, qz, qw]
-        w, x, y, z = quaternions[i]
-        qx, qy, qz, qw = x, y, z, w
+        w, x, y, z = quaternions[i]            # metadata cam: [w, x, y, z]
+        qx, qy, qz, qw = x, y, z, w            # → TUM: [qx, qy, qz, qw]
 
-        # Sanity check: unit quaternion
-        norm = np.sqrt(qx**2 + qy**2 + qz**2 + qw**2)
-        if abs(norm - 1.0) > 1e-4:
-            print(f"  [WARN] Camera quaternion frame {i} norm={norm:.6f} (expected 1.0)")
+        check_unit_quaternion(np.array([qx, qy, qz, qw]), "camera", i)
 
         timestamps.append(ts)
         tum_lines.append(format_tum_line(ts, tx, ty, tz, qx, qy, qz, qw))
@@ -139,47 +112,40 @@ def parse_camera_poses(metadata: dict, frame_rate: float) -> tuple:
 
 
 # =============================================================================
-# Object Pose Parser
+# Object Pose Parser — WORLD frame (primary GT source)
 # =============================================================================
 
-def parse_object_poses(pose_labels: list, frame_rate: float) -> list:
+def parse_object_poses_world(metadata: dict, frame_rate: float) -> list:
     """
-    Parse object poses from pose_labels.json.
+    Parse object poses in WORLD frame from metadata.json instances section.
+    This is the PRIMARY ground truth source — directly from PyBullet simulation.
 
-    pose_labels.json contains the object pose relative to the CAMERA frame.
-    This is the most directly useful format for pose estimation algorithms.
-
-    Quaternion convention in pose_labels.json: [x, y, z, w]  (scipy convention)
-    Output convention (TUM):                   [qx, qy, qz, qw]  ← same order, no reordering needed
-
-    Position:  r_obj2cam = [tx, ty, tz] in CAMERA frame, meters
-    Orientation: q_obj2cam = [qx, qy, qz, qw] in CAMERA frame
+    Quaternion convention in metadata instances: [w, x, y, z]  (same as camera)
+    Position units: metres in world frame (scale=MM_TO_M applies to mesh only,
+                    not to PyBullet rigid body positions)
 
     Returns:
-        tum_lines (list of str)
+        tum_lines (list[str])
     """
+    instances = metadata.get("instances", [])
+    if not instances:
+        print("  [WARN] No instances found in metadata.json — skipping world object poses")
+        return []
+
+    obj         = instances[0]
+    positions   = obj["positions"]    # [tx, ty, tz] world frame, metres
+    quaternions = obj["quaternions"]  # [w, x, y, z] world frame
+
     tum_lines = []
 
-    for i, entry in enumerate(pose_labels):
-        ts = i / frame_rate
+    for i in range(len(positions)):
+        ts         = i / frame_rate
+        tx, ty, tz = positions[i]
 
-        # Position: [tx, ty, tz] in camera frame, meters
-        tx, ty, tz = entry["r_obj2cam"]
+        w, x, y, z     = quaternions[i]        # metadata instances: [w, x, y, z]
+        qx, qy, qz, qw = x, y, z, w            # → TUM: [qx, qy, qz, qw]
 
-        # Quaternion: [x, y, z, w] → TUM needs [qx, qy, qz, qw] — same order
-        qx, qy, qz, qw = entry["q_obj2cam"]
-
-        # Sanity check: unit quaternion
-        norm = np.sqrt(qx**2 + qy**2 + qz**2 + qw**2)
-        if abs(norm - 1.0) > 1e-4:
-            print(f"  [WARN] Object quaternion frame {i} norm={norm:.6f} (expected 1.0)")
-
-        # Verify filename matches expected frame index
-        expected_filename = f"{i:06d}.png"
-        actual_filename   = entry.get("filename", expected_filename)
-        if actual_filename != expected_filename:
-            print(f"  [WARN] Frame {i}: expected '{expected_filename}', "
-                  f"got '{actual_filename}' — using index-based timestamp")
+        check_unit_quaternion(np.array([qx, qy, qz, qw]), "world object", i)
 
         tum_lines.append(format_tum_line(ts, tx, ty, tz, qx, qy, qz, qw))
 
@@ -187,49 +153,32 @@ def parse_object_poses(pose_labels: list, frame_rate: float) -> list:
 
 
 # =============================================================================
-# Optional: World-Frame Object Pose from metadata instances
+# Object Pose Parser — CAMERA frame (from pose_labels.json)
 # =============================================================================
 
-def parse_object_poses_world(metadata: dict, frame_rate: float) -> list:
+def parse_object_poses_camera(pose_labels: list, frame_rate: float) -> list:
     """
-    Parse object poses in WORLD frame from metadata.json instances section.
+    Parse object poses in CAMERA frame from pose_labels.json.
 
-    Use this if your algorithm needs world-frame object poses instead of
-    camera-relative poses.
+    NOTE: pose_labels.json r_obj2cam was generated from generate_trajectory()
+    which used wrong time units (m/frame vs m/s). Prefer world frame GT from
+    parse_object_poses_world() and transform to camera frame if needed.
 
-    Quaternion convention in metadata instances: [x, y, z, w]  (scipy convention)
-    Position: in Kubric simulation units — scaled by step_rate internally.
-    
-    NOTE: positions here are in Kubric's internal simulation units, not directly
-    in meters. The pose_labels.json r_obj2cam is in meters in camera frame and
-    is the recommended source for metric ground truth.
-
-    Returns:
-        tum_lines (list of str)
+    Quaternion convention: [x, y, z, w] (scipy) → TUM [qx, qy, qz, qw] (no reorder needed)
+    Position units: metres in camera frame
     """
-    instances = metadata.get("instances", [])
-    if not instances:
-        print("  [WARN] No instances found in metadata.json")
-        return []
+    tum_lines = []
 
-    obj = instances[0]  # first (and typically only) object
-    positions   = obj["positions"]    # [tx, ty, tz] world frame, simulation units
-    quaternions = obj["quaternions"]  # [qx, qy, qz, qw] world frame (scipy)
+    for i, entry in enumerate(pose_labels):
+        ts         = i / frame_rate
+        tx, ty, tz = entry["r_obj2cam"]
+        qx, qy, qz, qw = entry["q_obj2cam"]    # already [x,y,z,w] = TUM order
 
-    num_frames = len(positions)
-    tum_lines  = []
+        check_unit_quaternion(np.array([qx, qy, qz, qw]), "camera-frame object", i)
 
-    for i in range(num_frames):
-        ts = i / frame_rate
-
-        tx, ty, tz = positions[i]
-
-        # instances quaternion: [x, y, z, w] → TUM [qx, qy, qz, qw] — same order
-        qx, qy, qz, qw = quaternions[i]
-
-        norm = np.sqrt(qx**2 + qy**2 + qz**2 + qw**2)
-        if abs(norm - 1.0) > 1e-4:
-            print(f"  [WARN] World object quaternion frame {i} norm={norm:.6f}")
+        expected_fn = f"{i:06d}.png"
+        if entry.get("filename", expected_fn) != expected_fn:
+            print(f"  [WARN] Frame {i}: filename mismatch in pose_labels.json")
 
         tum_lines.append(format_tum_line(ts, tx, ty, tz, qx, qy, qz, qw))
 
@@ -242,181 +191,109 @@ def parse_object_poses_world(metadata: dict, frame_rate: float) -> list:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Parse Kubric metadata.json and pose_labels.json into TUM ground truth files.",
+        description="Parse Kubric outputs into TUM ground truth files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Output files:
-  camera_ground_truth.txt  — camera pose in world frame (from metadata.json)
-  object_ground_truth.txt  — object pose in camera frame (from pose_labels.json)
-  object_world_ground_truth.txt — object pose in world frame (from metadata.json instances)
-  times.txt                — timestamps for each frame
-
-TUM format:
-  timestamp tx ty tz qx qy qz qw
-
-Quaternion conventions (verified):
-  camera_ground_truth.txt       → metadata camera.quaternions [w,x,y,z] → reordered to [qx,qy,qz,qw]
-  object_ground_truth.txt       → pose_labels q_obj2cam [x,y,z,w]       → output as   [qx,qy,qz,qw]
-  object_world_ground_truth.txt → metadata instances.quaternions [x,y,z,w] → output as [qx,qy,qz,qw]
-        """
     )
-
 
     object_name = "Cheops"
-    output_dir = f"/home/haihong/tracking_dataset/kubric_sim/reconstruction-tracking-synthetic/{object_name}/"
+    output_dir  = (f"/home/haihong/tracking_dataset/kubric_sim/"
+                   f"reconstruction-tracking-synthetic/{object_name}/")
 
-    parser.add_argument(
-        "--metadata",
-        type=str,
-        default=f"{output_dir}/metadata.json",
-        help="Path to metadata.json (Kubric output)"
-    )
-    parser.add_argument(
-        "--pose_labels",
-        type=str,
-        default=f"{output_dir}/pose_labels.json",
-        help="Path to pose_labels.json"
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default=output_dir,
-        help="Directory to write output files (default: ./ground_truth)"
-    )
-    parser.add_argument(
-        "--frame_rate",
-        type=float,
-        default=None,
-        help="Frame rate in Hz. If not set, reads from metadata.json (recommended)."
-    )
-    parser.add_argument(
-        "--also_write_world_object",
-        action="store_true",
-        default=False,
-        help="Also write object_world_ground_truth.txt from metadata instances (world frame, simulation units)"
-    )
+    parser.add_argument("--metadata",    type=str, default=f"{output_dir}/metadata.json")
+    parser.add_argument("--pose_labels", type=str, default=f"{output_dir}/pose_labels.json")
+    parser.add_argument("--output_dir",  type=str, default=output_dir)
+    parser.add_argument("--frame_rate",  type=float, default=None,
+                        help="Override frame rate (default: read from metadata.json)")
+    parser.add_argument("--skip_camera_frame_object", action="store_true", default=False,
+                        help="Skip writing object_pose_ground_truth.txt (camera frame, unreliable)")
 
     args = parser.parse_args()
 
-    # --- Load files ---
     print(f"\n[Parser] Loading metadata:    {args.metadata}")
-    metadata = load_json(args.metadata)
-
+    metadata    = load_json(args.metadata)
     print(f"[Parser] Loading pose_labels: {args.pose_labels}")
     pose_labels = load_json(args.pose_labels)
 
-    # --- Determine frame rate ---
-    if args.frame_rate is not None:
-        frame_rate = args.frame_rate
-        print(f"[Parser] Frame rate: {frame_rate} fps (from --frame_rate argument)")
-    else:
-        frame_rate = metadata["metadata"]["frame_rate"]
-        print(f"[Parser] Frame rate: {frame_rate} fps (from metadata.json)")
+    frame_rate = args.frame_rate or metadata["metadata"]["frame_rate"]
+    print(f"[Parser] Frame rate: {frame_rate} fps")
 
     num_frames_meta  = metadata["metadata"]["num_frames"]
-    num_frames_pose  = len(pose_labels)
     num_frames_cam   = len(metadata["camera"]["positions"])
+    num_frames_inst  = len(metadata["instances"][0]["positions"])
+    num_frames_pose  = len(pose_labels)
 
     print(f"\n[Parser] Frame counts:")
     print(f"  metadata.num_frames:              {num_frames_meta}")
     print(f"  metadata.camera.positions:        {num_frames_cam}")
+    print(f"  metadata.instances[0].positions:  {num_frames_inst}")
     print(f"  pose_labels entries:              {num_frames_pose}")
 
-    if not (num_frames_meta == num_frames_cam == num_frames_pose):
-        print(f"\n  [WARN] Frame count mismatch! Using min({num_frames_cam}, {num_frames_pose})")
+    num_frames = min(num_frames_cam, num_frames_inst, num_frames_pose)
+    if not (num_frames_meta == num_frames_cam == num_frames_inst == num_frames_pose):
+        print(f"  [WARN] Frame count mismatch — using min = {num_frames}")
 
-    num_frames = min(num_frames_cam, num_frames_pose)
-
-    # --- Output directory ---
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"\n[Parser] Output directory: {out_dir.resolve()}")
 
-    # --- Parse camera poses ---
+    # --- Camera poses (world frame) ---
     print("\n[Parser] Parsing camera poses (world frame)...")
-    timestamps, cam_tum_lines = parse_camera_poses(metadata, frame_rate)
-
-    cam_header = (
-        f"Camera poses in WORLD frame\n"
-        f"Source: metadata.json camera.positions + camera.quaternions\n"
-        f"Quaternion input format:  [w, x, y, z]\n"
-        f"Quaternion output format: [qx, qy, qz, qw]  (TUM standard)\n"
-        f"Position units: meters\n"
-        f"Frame rate: {frame_rate} fps\n"
-        f"Num frames: {num_frames}"
-    )
+    timestamps, cam_lines = parse_camera_poses(metadata, frame_rate)
     write_tum_file(
         str(out_dir / "pose_ground_truth.txt"),
-        cam_tum_lines[:num_frames],
-        cam_header
+        cam_lines[:num_frames],
+        ("Camera poses in WORLD frame\n"
+         "Source: metadata.json camera.positions + camera.quaternions\n"
+         "Quaternion input [w,x,y,z] → output [qx,qy,qz,qw] (TUM)\n"
+         f"Position units: metres | Frame rate: {frame_rate} fps | Frames: {num_frames}")
     )
 
-    # --- Parse object poses (camera frame) ---
-    print("\n[Parser] Parsing object poses (camera frame)...")
-    obj_tum_lines = parse_object_poses(pose_labels, frame_rate)
-
-    obj_header = (
-        f"Object poses in CAMERA frame\n"
-        f"Source: pose_labels.json r_obj2cam + q_obj2cam\n"
-        f"Quaternion input format:  [x, y, z, w]  (scipy convention)\n"
-        f"Quaternion output format: [qx, qy, qz, qw]  (TUM standard)\n"
-        f"Position units: meters\n"
-        f"Frame rate: {frame_rate} fps\n"
-        f"Num frames: {num_frames}"
-    )
+    # --- Object poses (world frame) — PRIMARY GT ---
+    print("\n[Parser] Parsing object poses (world frame) — PRIMARY GT...")
+    obj_world_lines = parse_object_poses_world(metadata, frame_rate)
     write_tum_file(
         str(out_dir / "object_pose_ground_truth.txt"),
-        obj_tum_lines[:num_frames],
-        obj_header
+        obj_world_lines[:num_frames],
+        ("Object poses in WORLD frame  *** PRIMARY GROUND TRUTH ***\n"
+         "Source: metadata.json instances[0].positions + instances[0].quaternions\n"
+         "Directly from PyBullet simulation — use this in preference to pose_labels.json\n"
+         "Quaternion input [w,x,y,z] → output [qx,qy,qz,qw] (TUM)\n"
+         f"Position units: metres | Frame rate: {frame_rate} fps | Frames: {num_frames}")
     )
 
-    # --- Parse object poses (world frame) — optional ---
-    if args.also_write_world_object:
-        print("\n[Parser] Parsing object poses (world frame from metadata instances)...")
-        obj_world_lines = parse_object_poses_world(metadata, frame_rate)
-
-        obj_world_header = (
-            f"Object poses in WORLD frame\n"
-            f"Source: metadata.json instances[0].positions + instances[0].quaternions\n"
-            f"Quaternion input format:  [x, y, z, w]  (scipy convention)\n"
-            f"Quaternion output format: [qx, qy, qz, qw]  (TUM standard)\n"
-            f"Position units: Kubric simulation units (NOT directly meters)\n"
-            f"Frame rate: {frame_rate} fps\n"
-            f"Num frames: {num_frames}"
-        )
+    # --- Object poses (camera frame) — secondary, potentially unreliable ---
+    if not args.skip_camera_frame_object:
+        print("\n[Parser] Parsing object poses (camera frame from pose_labels.json)...")
+        obj_cam_lines = parse_object_poses_camera(pose_labels, frame_rate)
         write_tum_file(
-            str(out_dir / "object_world_ground_truth.txt"),
-            obj_world_lines[:num_frames],
-            obj_world_header
+            str(out_dir / "object_pose_ground_truth_unreliable.txt"),
+            obj_cam_lines[:num_frames],
+            ("Object poses in CAMERA frame\n"
+             "Source: pose_labels.json r_obj2cam + q_obj2cam\n"
+             "WARNING: generated from generate_trajectory() which may not match rendered frames.\n"
+             "Prefer object_pose_ground_truth.txt transformed to camera frame.\n"
+             "Quaternion input [x,y,z,w] → output [qx,qy,qz,qw] (TUM)\n"
+             f"Position units: metres | Frame rate: {frame_rate} fps | Frames: {num_frames}")
         )
 
-    # --- Write times.txt ---
+    # --- times.txt ---
     print("\n[Parser] Writing times.txt...")
-    write_times_file(
-        str(out_dir / "times.txt"),
-        timestamps[:num_frames]
-    )
+    write_times_file(str(out_dir / "times.txt"), timestamps[:num_frames])
 
-    # --- Print first 3 lines of each file for quick sanity check ---
-    print("\n" + "="*60)
-    print("SANITY CHECK — First 3 lines of each output file:")
-    print("="*60)
+    # --- Sanity check printout ---
+    print("\n" + "=" * 60)
+    print("SANITY CHECK — First 3 lines of each output:")
+    print("=" * 60)
 
-    print(f"\n[camera_ground_truth.txt]")
-    print(f"  # timestamp tx ty tz qx qy qz qw")
-    for line in cam_tum_lines[:3]:
+    print("\n[pose_ground_truth.txt]  (camera, world frame)")
+    for line in cam_lines[:3]:
         print(f"  {line}")
 
-    print(f"\n[object_ground_truth.txt]")
-    print(f"  # timestamp tx ty tz qx qy qz qw")
-    for line in obj_tum_lines[:3]:
+    print("\n[object_pose_ground_truth.txt]  (object, world frame — PRIMARY)")
+    for line in obj_world_lines[:3]:
         print(f"  {line}")
 
-    print(f"\n[times.txt]")
-    for ts in timestamps[:3]:
-        print(f"  {ts:.10f}")
-
-    print(f"\n[Parser] Done. All files written to: {out_dir.resolve()}")
+    print(f"\n[Parser] Done → {out_dir.resolve()}")
 
 
 if __name__ == "__main__":
