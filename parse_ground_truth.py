@@ -1,33 +1,19 @@
-"""
-parse_ground_truth.py
-=====================
-Parses Kubric simulation outputs into TUM-format ground truth files.
+"""Parse current Kubric metadata and pose labels into TUM ground truth files.
 
-Outputs:
-    pose_ground_truth.txt         — camera pose in WORLD frame
-    object_pose_ground_truth_unreliable.txt  — object pose in CAMERA frame (derived)
-    object_pose_ground_truth.txt — object pose in WORLD frame  (primary GT source)
-    times.txt                     — timestamps matching each frame
+Current authoritative schema:
+  pose_labels.json:
+    camera_position_world_m
+    camera_quaternion_world_wxyz
+    object_position_world_m
+    object_quaternion_world_wxyz
+    r_obj2cam
+    q_obj2cam              # [w, x, y, z]
 
-TUM Format (per line):
-    timestamp tx ty tz qx qy qz qw
-
-Quaternion Conventions (verified against metadata.json):
-    metadata.json  camera.quaternions[i]            → [w, x, y, z]  WORLD frame
-    metadata.json  instances[0].quaternions[i]      → [w, x, y, z]  WORLD frame
-    pose_labels.json  q_obj2cam                     → [x, y, z, w]  CAMERA frame (scipy)
-
-Usage:
-    python parse_ground_truth.py \\
-        --metadata   path/to/metadata.json \\
-        --pose_labels path/to/pose_labels.json \\
-        --output_dir path/to/output/
+The parser also accepts older metadata files containing per-frame arrays.
 """
 
-import os
-import json
 import argparse
-import numpy as np
+import json
 from pathlib import Path
 
 
