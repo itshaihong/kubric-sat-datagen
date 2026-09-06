@@ -22,6 +22,20 @@ docker run --rm --interactive \
   /usr/bin/python3 /kubric/generate_spacecraft.py --help
 ```
 
+From this repo, use the pinned wrapper so the container runs as your user and stays tied to the cached Kubric image digest:
+
+```bash
+bash scripts/run_viewrich_secure.sh
+```
+
+To run FastSAM post-processing later, set `FASTSAM_DIR` to a local FastSAM checkout before launching the wrapper:
+
+```bash
+FASTSAM_DIR=/path/to/FastSAM bash scripts/run_viewrich_secure.sh
+```
+
+The wrapper pins `kubricdockerhub/kubruntu` to `sha256:a4152c8066ffbd7bd303e4ea79c3ce250f190368cb07479fb6763308f165a17f`, mounts the repo read-write, and mounts FastSAM read-only when present.
+
 ## End-to-End Pipeline
 
 `run_dataset_pipeline.py` runs the three dataset stages in order:
