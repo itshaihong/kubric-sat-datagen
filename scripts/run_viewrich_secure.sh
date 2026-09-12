@@ -22,9 +22,9 @@ if [[ $# -eq 0 ]]; then
   set -- \
     generate_spacecraft_orbit_viewrich.py \
     --trajectory fibonacci \
-    --num-snapshots 96 \
+    --num-snapshots 48 \
+    --render-chunk-size 10 \
     --orbit-radius 10.0 \
-    --max-abs-elevation 70 \
     --lighting cv_bright \
     --seed 0
 fi

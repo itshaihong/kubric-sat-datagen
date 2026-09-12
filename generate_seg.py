@@ -33,6 +33,7 @@ import os
 import sys
 import cv2
 import argparse
+import imageio
 import json
 import numpy as np
 import torch
@@ -46,9 +47,17 @@ import matplotlib.pyplot as plt
 # =============================================================================
 
 PATH = os.getcwd()
-module_dir = os.path.abspath(f"{PATH}/../../FastSAM")
-if module_dir not in sys.path:
-    sys.path.append(module_dir)
+fastsam_candidates = [
+    os.environ.get("FASTSAM_DIR"),
+    os.path.abspath(os.path.join(PATH, "FastSAM")),
+    os.path.abspath(os.path.join(PATH, "..", "FastSAM")),
+    os.path.abspath(os.path.join(PATH, "..", "..", "FastSAM")),
+    "/FastSAM",
+]
+for module_dir in fastsam_candidates:
+    if module_dir and os.path.isdir(module_dir) and module_dir not in sys.path:
+        sys.path.append(module_dir)
+        break
 
 from fastsam import FastSAM, FastSAMPrompt
 
@@ -268,6 +277,39 @@ def union_candidate_masks_in_box(everything_results, box, padding=80):
     return union
 
 
+def depth_prompt_box_for_frame(
+    depth_dir: Path,
+    frame_stem: str,
+    padding: int = 40,
+    max_depth: float = 9999.0,
+):
+    depth_path = None
+    for suffix in (".tiff", ".tif", ".png"):
+        candidate = depth_dir / f"{frame_stem}{suffix}"
+        if candidate.exists():
+            depth_path = candidate
+            break
+
+    if depth_path is None:
+        raise FileNotFoundError(
+            f"No depth file found for frame {frame_stem} in {depth_dir}"
+        )
+
+    depth = imageio.v2.imread(depth_path)
+    depth = np.asarray(depth, dtype=np.float32)
+    valid = np.isfinite(depth) & (depth > 0.0) & (depth < max_depth)
+    y_coords, x_coords = np.where(valid)
+    if len(y_coords) == 0:
+        return None
+
+    h, w = depth.shape[:2]
+    x0 = max(0, int(x_coords.min()) - padding)
+    y0 = max(0, int(y_coords.min()) - padding)
+    x1 = min(w - 1, int(x_coords.max()) + padding)
+    y1 = min(h - 1, int(y_coords.max()) + padding)
+    return [x0, y0, x1, y1]
+
+
 def initialize_object_on_first_frame(
     img_pil, everything_results, device,
     prompt_type, point=None, box=None, text=None, union_box_prompt=False, union_box_padding=80
@@ -407,6 +449,9 @@ def generate_segmentation_masks(
     out_seg_dir: str          = "./seg_output",
     save_debug: bool          = False,
     out_debug_dir: str        = None,
+    depth_prompt_dir: str     = None,
+    depth_prompt_padding: int = 40,
+    depth_max_value: float    = 9999.0,
     # --- FastSAM ---
     fastsam_weights: str      = "../FastSAM/weights/FastSAM-x.pt",
     fastsam_conf: float       = 0.25,
@@ -420,6 +465,7 @@ def generate_segmentation_masks(
     init_text: str            = None,
     # --- Tracker ---
     tracker_prompt_type: str  = "point",
+    independent_frames: bool  = False,
     union_box_prompt: bool    = False,
     union_box_padding: int    = 80,
     min_mask_area: int        = 100,
@@ -453,6 +499,13 @@ def generate_segmentation_masks(
     print(f"[SegGen] Output seg dir: {out_seg_dir}")
     print(f"[SegGen] Device        : {device}")
     print(f"[SegGen] Loading FastSAM weights: {fastsam_weights}")
+
+    depth_dir = Path(depth_prompt_dir) if depth_prompt_dir else None
+    if depth_dir is not None:
+        if not depth_dir.exists():
+            raise FileNotFoundError(f"depth_prompt_dir does not exist: {depth_dir}")
+        independent_frames = True
+        print(f"[SegGen] Depth prompts: {depth_dir}")
 
     model = FastSAM(fastsam_weights)
 
@@ -558,8 +611,40 @@ def generate_segmentation_masks(
             }, indent=2))
             continue
 
+        depth_box = None
+        if depth_dir is not None:
+            depth_box = depth_prompt_box_for_frame(
+                depth_dir,
+                Path(img_file).stem,
+                padding=depth_prompt_padding,
+                max_depth=depth_max_value,
+            )
+            if depth_box is None:
+                print(f"    Warning: no valid depth foreground at frame {frame_num}. Saving empty mask.")
+                save_seg_mask(None, (H, W), seg_out)
+                continue
+            print(f"  [DepthPrompt] Box prompt: {depth_box}")
+
+        if independent_frames:
+            frame_prompt_type = "box" if depth_box is not None else prompt_type
+            mask = initialize_object_on_first_frame(
+                img_pil,
+                everything_results,
+                device,
+                frame_prompt_type,
+                init_point,
+                depth_box if depth_box is not None else init_box,
+                init_text,
+                union_box_prompt,
+                union_box_padding,
+            )
+            if mask is None:
+                print("    ERROR: Frame prompt failed. Saving empty mask.")
+                save_seg_mask(None, (H, W), seg_out)
+                continue
+
         # --- Initialise tracker on first frame ---
-        if tracker is None:
+        elif tracker is None:
             mask = initialize_object_on_first_frame(
                 img_pil, everything_results, device,
                 prompt_type, init_point, init_box, init_text, union_box_prompt,
@@ -623,6 +708,12 @@ def parse_args():
                         help="Directory to save output segmentation masks.")
     parser.add_argument("--out_debug_dir", type=str, default=None,
                         help="Directory to save debug visualizations.")
+    parser.add_argument("--depth_prompt_dir", type=str, default=None,
+                        help="Depth directory used to derive one box prompt per frame.")
+    parser.add_argument("--depth_prompt_padding", type=int, default=40,
+                        help="Pixels added around depth-derived prompt boxes.")
+    parser.add_argument("--depth_max_value", type=float, default=9999.0,
+                        help="Depth values at or above this are treated as background.")
 
     # Output
     parser.add_argument("--save_debug",    action="store_true",
@@ -659,6 +750,8 @@ def parse_args():
     parser.add_argument("--tracker_prompt_type", type=str, default="point",
                         choices=["point", "box"],
                         help="Tracker prompt type for subsequent frames.")
+    parser.add_argument("--independent_frames", action="store_true",
+                        help="Prompt every frame independently instead of tracking from the previous mask.")
     parser.add_argument("--union_box_prompt", action="store_true",
                         help="Union FastSAM candidates belonging to the spacecraft box.")
     parser.add_argument("--union_box_padding", type=int, default=80,
@@ -699,6 +792,9 @@ if __name__ == "__main__":
         out_seg_dir          = args.out_seg_dir if args.out_seg_dir else f"{output_dir}/seg/",
         save_debug           = args.save_debug,
         out_debug_dir        = args.out_debug_dir if args.out_debug_dir else f"{output_dir}/debug/",
+        depth_prompt_dir     = args.depth_prompt_dir,
+        depth_prompt_padding = args.depth_prompt_padding,
+        depth_max_value      = args.depth_max_value,
         fastsam_weights      = args.fastsam_weights,
         fastsam_conf         = args.fastsam_conf,
         fastsam_iou          = args.fastsam_iou,
@@ -709,6 +805,7 @@ if __name__ == "__main__":
         init_box             = args.init_box,
         init_text            = args.init_text,
         tracker_prompt_type  = args.tracker_prompt_type,
+        independent_frames   = args.independent_frames,
         union_box_prompt     = args.union_box_prompt,
         union_box_padding    = args.union_box_padding,
         min_mask_area        = args.min_mask_area,

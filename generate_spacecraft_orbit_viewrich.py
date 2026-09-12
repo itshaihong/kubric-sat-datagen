@@ -6,9 +6,8 @@ Drop-in replacement for generate_spacecraft_orbit.py.
 
 Main change:
 - Satellite stays perfectly stationary.
-- Frame 0 remains the original anchor camera at (0, -radius, 0).
-- Remaining frames are distributed over a truncated Fibonacci sphere to
-  provide complementary 3D surface coverage.
+- Fibonacci mode distributes cameras over the full viewing sphere to provide
+  complementary 3D surface coverage.
 - Camera radius is fixed.
 - Every camera looks at the stationary spacecraft center.
 - Existing RGB / depth / optical-flow / pose-label / metadata outputs are kept.
@@ -16,9 +15,8 @@ Main change:
 Recommended diagnostic run:
     python generate_spacecraft_orbit.py \
         --trajectory fibonacci \
-        --num-snapshots 96 \
+        --num-snapshots 48 \
         --orbit-radius 10.0 \
-        --max-abs-elevation 70 \
         --lighting cv_bright \
         --seed 0
 
@@ -30,7 +28,6 @@ Legacy equatorial orbit:
         --orbit-elevation 0
 
 Notes:
-- Frame 0 is always the original anchor for the Fibonacci trajectory.
 - The sun is still sampled once against the reference frame-0 boresight and
   remains fixed in the world frame, matching the previous script's convention.
 """
@@ -39,6 +36,7 @@ import argparse
 import json
 import math
 import os
+import shutil
 
 import imageio
 import kubric as kb
@@ -159,7 +157,7 @@ def parse_args():
         choices=("fibonacci", "ring"),
         default="fibonacci",
         help=(
-            "'fibonacci' = view-rich truncated sphere; "
+            "'fibonacci' = view-rich full sphere; "
             "'ring' = legacy single-elevation circular orbit."
         ),
     )
@@ -168,6 +166,12 @@ def parse_args():
         type=int,
         default=NUM_SNAPSHOTS,
         help="Number of rendered viewpoints.",
+    )
+    parser.add_argument(
+        "--render-chunk-size",
+        type=int,
+        default=10,
+        help="Number of frames to render and export per batch.",
     )
     parser.add_argument(
         "--orbit-radius",
@@ -180,8 +184,8 @@ def parse_args():
         type=float,
         default=MAX_ABS_ELEVATION_DEG,
         help=(
-            "For fibonacci trajectory, reject candidate views with absolute "
-            "elevation above this value. Recommended: 65-75 deg."
+            "Deprecated compatibility option; fibonacci mode now covers the "
+            "full sphere."
         ),
     )
     parser.add_argument(
@@ -232,28 +236,31 @@ def write_flo(filename, flow):
         flow.astype(np.float32).tofile(f)
 
 
-def write_flo_batch(flows, output_dir):
+def write_flo_batch(flows, output_dir, start_index=0):
     os.makedirs(output_dir, exist_ok=True)
     for i, flow in enumerate(flows):
+        frame_idx = start_index + i
         write_flo(
-            os.path.join(output_dir, f"{i:06d}.flo"),
+            os.path.join(output_dir, f"{frame_idx:06d}.flo"),
             flow[..., :2],
         )
 
 
-def write_rgb_batch(rgb_frames, output_dir):
+def write_rgb_batch(rgb_frames, output_dir, start_index=0):
     os.makedirs(output_dir, exist_ok=True)
     for i, frame in enumerate(rgb_frames):
+        frame_idx = start_index + i
         Image.fromarray(frame[..., :3], mode="RGB").save(
-            os.path.join(output_dir, f"{i:06d}.png")
+            os.path.join(output_dir, f"{frame_idx:06d}.png")
         )
 
 
-def write_tiff_depth_batch(depth_f64, output_dir):
+def write_tiff_depth_batch(depth_f64, output_dir, start_index=0):
     os.makedirs(output_dir, exist_ok=True)
     for i, frame in enumerate(depth_f64):
+        frame_idx = start_index + i
         imageio.imwrite(
-            os.path.join(output_dir, f"{i:06d}.tiff"),
+            os.path.join(output_dir, f"{frame_idx:06d}.tiff"),
             frame.squeeze().astype(np.float64),
             format="tiff",
         )
@@ -275,6 +282,23 @@ def clamp_depth_batch(depth_frames, max_depth=MAX_DEPTH):
     return depth
 
 
+def clear_render_scratch(scratch_dir):
+    for subdir in ("exr", "images"):
+        path = os.path.join(scratch_dir, subdir)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+
+
+def iter_frame_chunks(frame_start, frame_end, chunk_size):
+    if chunk_size < 1:
+        raise ValueError("--render-chunk-size must be >= 1")
+    start = frame_start
+    while start <= frame_end:
+        end = min(frame_end, start + chunk_size - 1)
+        yield start, end, list(range(start, end + 1))
+        start = end + 1
+
+
 # =============================================================================
 # LIGHTING
 # =============================================================================
@@ -292,7 +316,7 @@ def sample_sun_direction(
     Sample one fixed world-space sun direction using the reference camera.
 
     This deliberately keeps the same convention as the old orbit script:
-    the angular constraint applies to the reference/anchor camera, not every
+    the angular constraint applies to the reference frame-0 camera, not every
     view on the spherical trajectory.
     """
     boresight = np.asarray(look_at, dtype=float) - np.asarray(
@@ -423,97 +447,40 @@ def generate_camera_fibonacci(
     target=np.zeros(3),
 ):
     """
-    Generate a truncated Fibonacci-sphere trajectory.
+    Generate a full Fibonacci-sphere trajectory.
 
     Design choices:
-    1. Frame 0 is forced to the legacy anchor position:
-           target + [0, -radius, 0]
-    2. Remaining frames use approximately uniform spherical sampling.
-    3. Candidate points above |max_abs_elevation_deg| are rejected.
-    4. The fixed radius removes scale/distance as an experimental variable.
+    1. Every frame uses approximately uniform equal-area spherical sampling.
+    2. No camera is placed exactly on a pole, avoiding look-at degeneracy.
+    3. The fixed radius removes scale/distance as an experimental variable.
 
-    The candidate pool is intentionally oversampled, then the first accepted
-    low-discrepancy directions are retained.
+    max_abs_elevation_deg is kept in the signature for CLI compatibility, but
+    Fibonacci mode now intentionally covers the full sphere.
     """
     if num_snapshots < 1:
         raise ValueError("num_snapshots must be >= 1")
 
-    max_abs_elevation_deg = float(max_abs_elevation_deg)
-
-    if not (0.0 < max_abs_elevation_deg < 90.0):
-        raise ValueError(
-            "--max-abs-elevation must satisfy 0 < value < 90 degrees"
-        )
-
     target = np.asarray(target, dtype=float)
-    anchor = target + np.array([0.0, -radius, 0.0], dtype=float)
-
-    if num_snapshots == 1:
-        return anchor[None, :]
-
-    positions = [anchor]
+    positions = []
 
     golden_ratio = (1.0 + math.sqrt(5.0)) / 2.0
-    max_abs_sin = math.sin(math.radians(max_abs_elevation_deg))
 
-    # Oversample enough points so truncating the poles still leaves plenty.
-    # Deterministic: no RNG is used here.
-    candidate_count = max(10 * num_snapshots, 512)
-
-    # Avoid selecting a direction almost identical to frame 0.
-    # With 96 views this is only a small exclusion zone.
-    min_anchor_separation_deg = 8.0
-    anchor_dir = np.array([0.0, -1.0, 0.0])
-
-    for i in range(candidate_count):
+    for i in range(num_snapshots):
         # Standard equal-area Fibonacci sphere.
-        z = 1.0 - 2.0 * (i + 0.5) / candidate_count
-
-        if abs(z) > max_abs_sin:
-            continue
+        z = 1.0 - 2.0 * (i + 0.5) / num_snapshots
 
         theta = 2.0 * math.pi * i / golden_ratio
         rho = math.sqrt(max(0.0, 1.0 - z * z))
 
-        # Standard sphere point.
-        raw = np.array([
-            rho * math.cos(theta),
-            rho * math.sin(theta),
-            z,
-        ])
-
-        # Rotate/relabel the XY convention so azimuth 0 still corresponds to -Y.
+        # Keep the existing azimuth convention: 0 deg is target -Y.
         direction = np.array([
-            raw[0],
-            raw[1],
-            raw[2],
+            rho * math.sin(theta),
+            -rho * math.cos(theta),
+            z,
         ])
         direction /= np.linalg.norm(direction)
 
-        anchor_sep = math.degrees(
-            math.acos(
-                np.clip(
-                    np.dot(direction, anchor_dir),
-                    -1.0,
-                    1.0,
-                )
-            )
-        )
-
-        if anchor_sep < min_anchor_separation_deg:
-            continue
-
         positions.append(target + radius * direction)
-
-        if len(positions) == num_snapshots:
-            break
-
-    if len(positions) != num_snapshots:
-        raise RuntimeError(
-            f"Only generated {len(positions)} of {num_snapshots} requested "
-            f"camera positions. Increase candidate_count or reduce "
-            f"--max-abs-elevation restriction."
-        )
 
     return np.asarray(positions, dtype=float)
 
@@ -647,7 +614,7 @@ def main():
             dataset_name = (
                 f"{object_name}_viewrich_"
                 f"{args.num_snapshots}f_"
-                f"e{int(round(args.max_abs_elevation))}_"
+                "fullsphere_"
                 f"{args.lighting}_seed{args.seed}"
             )
         else:
@@ -675,6 +642,9 @@ def main():
 
     if args.num_snapshots < 1:
         raise ValueError("--num-snapshots must be >= 1")
+
+    if args.render_chunk_size < 1:
+        raise ValueError("--render-chunk-size must be >= 1")
 
     if args.orbit_radius <= 0.0:
         raise ValueError("--orbit-radius must be > 0")
@@ -714,7 +684,7 @@ def main():
         f"[Trajectory] elevation range="
         f"[{cam_elevations.min():.2f}, {cam_elevations.max():.2f}] deg"
     )
-    print(f"[Trajectory] frame-0 anchor={cam_positions[0]}")
+    print(f"[Trajectory] frame-0 position={cam_positions[0]}")
     print(f"[Output] {output_dir}")
 
     # -------------------------------------------------------------------------
@@ -1008,7 +978,7 @@ def main():
     # 9. RENDER
     # -------------------------------------------------------------------------
 
-    print("[Render] Running Blender renderer...")
+    print("[Render] Running Blender renderer in chunks...")
 
     renderer.save_state(
         os.path.join(
@@ -1017,44 +987,83 @@ def main():
         )
     )
 
-    frames_dict = renderer.render()
+    depth_sum = 0.0
+    depth_min = np.inf
+    depth_max = -np.inf
+    valid_count = 0
+    total_count = 0
 
-    # -------------------------------------------------------------------------
-    # 10. DEPTH
-    # -------------------------------------------------------------------------
+    for chunk_start, chunk_end, chunk_frames in iter_frame_chunks(
+        frame_start,
+        frame_end,
+        args.render_chunk_size,
+    ):
+        chunk_offset = chunk_start - frame_start
+        print(
+            f"[Render] Chunk frames {chunk_start}-{chunk_end} "
+            f"({len(chunk_frames)} frames)"
+        )
 
-    print(
-        f"\n[Depth] Clamping invalid/background depth "
-        f"to {MAX_DEPTH:.1f} m ..."
-    )
+        clear_render_scratch(os.path.join(output_dir, "tmp"))
+        frames_dict = renderer.render(frames=chunk_frames)
 
-    depth_raw = frames_dict["depth"]
-    depth_clamped = clamp_depth_batch(
-        depth_raw,
-        max_depth=MAX_DEPTH,
-    )
-    depth_f64 = depth_clamped.astype(np.float64)
+        # ---------------------------------------------------------------------
+        # 10. DEPTH
+        # ---------------------------------------------------------------------
 
-    # -------------------------------------------------------------------------
-    # 11. EXPORT RGB / DEPTH / FLOW
-    # -------------------------------------------------------------------------
+        print(
+            f"[Depth] Clamping chunk {chunk_start}-{chunk_end} "
+            f"to {MAX_DEPTH:.1f} m ..."
+        )
 
-    print("[Export] Writing RGB, depth, flow ...")
+        depth_raw = frames_dict["depth"]
+        depth_clamped = clamp_depth_batch(
+            depth_raw,
+            max_depth=MAX_DEPTH,
+        )
+        depth_f64 = depth_clamped.astype(np.float64)
 
-    write_rgb_batch(
-        frames_dict["rgba"],
-        os.path.join(output_dir, "image"),
-    )
+        valid_mask = (
+            np.isfinite(depth_clamped)
+            & (depth_clamped > 0.0)
+            & (depth_clamped < MAX_DEPTH)
+        )
+        if np.any(valid_mask):
+            valid_values = depth_clamped[valid_mask]
+            depth_sum += float(np.sum(valid_values))
+            depth_min = min(depth_min, float(np.min(valid_values)))
+            depth_max = max(depth_max, float(np.max(valid_values)))
+            valid_count += int(valid_values.size)
+        total_count += int(depth_clamped.size)
 
-    write_tiff_depth_batch(
-        depth_f64,
-        os.path.join(output_dir, "depth"),
-    )
+        # ---------------------------------------------------------------------
+        # 11. EXPORT RGB / DEPTH / FLOW
+        # ---------------------------------------------------------------------
 
-    write_flo_batch(
-        frames_dict["forward_flow"],
-        os.path.join(output_dir, "flow"),
-    )
+        print(
+            f"[Export] Writing chunk {chunk_start}-{chunk_end} "
+            "RGB, depth, flow ..."
+        )
+
+        write_rgb_batch(
+            frames_dict["rgba"],
+            os.path.join(output_dir, "image"),
+            start_index=chunk_offset,
+        )
+
+        write_tiff_depth_batch(
+            depth_f64,
+            os.path.join(output_dir, "depth"),
+            start_index=chunk_offset,
+        )
+
+        write_flo_batch(
+            frames_dict["forward_flow"],
+            os.path.join(output_dir, "flow"),
+            start_index=chunk_offset,
+        )
+
+        del frames_dict, depth_raw, depth_clamped, depth_f64
 
     # -------------------------------------------------------------------------
     # 12. POSE LABELS
@@ -1119,12 +1128,13 @@ def main():
 
                 "trajectory": args.trajectory,
                 "num_snapshots": num_frames,
+                "render_chunk_size": args.render_chunk_size,
                 "orbit_radius_m": args.orbit_radius,
 
                 "max_abs_elevation_deg": (
-                    args.max_abs_elevation
+                    None
                     if args.trajectory == "fibonacci"
-                    else None
+                    else args.max_abs_elevation
                 ),
                 "orbit_elevation_deg": (
                     args.orbit_elevation
@@ -1156,15 +1166,13 @@ def main():
                 "mode": args.trajectory,
                 "description": (
                     "stationary spacecraft; camera moves on a "
-                    "truncated Fibonacci sphere"
+                    "full Fibonacci sphere"
                     if args.trajectory == "fibonacci"
                     else
                     "stationary spacecraft; camera moves on "
                     "a single circular ring"
                 ),
-                "frame_0_is_legacy_anchor": (
-                    args.trajectory == "fibonacci"
-                ),
+                "frame_0_is_legacy_anchor": False,
                 "num_snapshots": num_frames,
                 "radius_m": args.orbit_radius,
                 "camera_positions_world": (
@@ -1222,29 +1230,22 @@ def main():
     # 14. STATS
     # -------------------------------------------------------------------------
 
-    # Background is encoded as MAX_DEPTH in this script.
-    valid_mask = (
-        np.isfinite(depth_clamped)
-        & (depth_clamped > 0.0)
-        & (depth_clamped < MAX_DEPTH)
-    )
-
     print("\n[Depth Stats] valid spacecraft/scene depth pixels")
 
-    if np.any(valid_mask):
+    if valid_count > 0:
         print(
-            f"  mean: {np.mean(depth_clamped[valid_mask]):.4f} m"
+            f"  mean: {depth_sum / valid_count:.4f} m"
         )
         print(
-            f"  min:  {np.min(depth_clamped[valid_mask]):.4f} m"
+            f"  min:  {depth_min:.4f} m"
         )
         print(
-            f"  max:  {np.max(depth_clamped[valid_mask]):.4f} m"
+            f"  max:  {depth_max:.4f} m"
         )
         print(
-            f"  valid: {np.sum(valid_mask)} / "
-            f"{depth_clamped.size} pixels "
-            f"({100.0 * np.mean(valid_mask):.2f}%)"
+            f"  valid: {valid_count} / "
+            f"{total_count} pixels "
+            f"({100.0 * valid_count / total_count:.2f}%)"
         )
     else:
         print("  WARNING: no valid depth pixels found.")
