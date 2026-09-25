@@ -2,7 +2,6 @@ output/
 __pycache__/
 *.tiff
 *.flo
-*.json
 *.txt
 *.blend
 *.exr

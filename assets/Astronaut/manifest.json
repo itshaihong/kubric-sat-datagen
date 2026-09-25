@@ -1,0 +1,26 @@
+{
+  "asset_count": 1,
+  "assets": [
+    {
+      "asset_dir": "/kubric/assets/Astronaut_non_draco_from_glb",
+      "conversion": {
+        "status": "converted",
+        "textures": {
+          "astnt1_1": [
+            "astnt1_1.png"
+          ],
+          "astnt1_2": [
+            "astnt1_2.png"
+          ]
+        }
+      },
+      "generate_spacecraft_args": "--object-name Astronaut_non_draco --asset-dir /kubric/assets/Astronaut_non_draco_from_glb",
+      "mtl": "/kubric/assets/Astronaut_non_draco_from_glb/Astronaut_non_draco.mtl",
+      "obj": "/kubric/assets/Astronaut_non_draco_from_glb/Astronaut_non_draco.obj",
+      "object_name": "Astronaut_non_draco",
+      "source": "/kubric/assets/Astronaut_non_draco.glb",
+      "source_kind": "glb",
+      "urdf": "/kubric/assets/Astronaut_non_draco_from_glb/Astronaut_non_draco.urdf"
+    }
+  ]
+}

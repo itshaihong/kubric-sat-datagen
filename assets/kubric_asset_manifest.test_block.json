@@ -1,0 +1,19 @@
+{
+  "asset_count": 1,
+  "assets": [
+    {
+      "asset_dir": "/kubric/assets/Block_Island_from_stl",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Block_Island --asset-dir /kubric/assets/Block_Island_from_stl",
+      "mtl": "/kubric/assets/Block_Island_from_stl/Block_Island.mtl",
+      "obj": "/kubric/assets/Block_Island_from_stl/Block_Island.obj",
+      "object_name": "Block_Island",
+      "source": "/kubric/assets/Block Island.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Block_Island_from_stl/Block_Island.urdf"
+    }
+  ]
+}

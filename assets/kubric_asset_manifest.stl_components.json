@@ -1,0 +1,257 @@
+{
+  "asset_count": 18,
+  "assets": [
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_boom_01",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_boom_01 --asset-dir /kubric/assets/Cassini_components/Cassini_boom_01",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_boom_01/Cassini_boom_01.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_boom_01/Cassini_boom_01.obj",
+      "object_name": "Cassini_boom_01",
+      "source": "/kubric/assets/Cassini/boom_01.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_boom_01/Cassini_boom_01.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_boom_02",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_boom_02 --asset-dir /kubric/assets/Cassini_components/Cassini_boom_02",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_boom_02/Cassini_boom_02.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_boom_02/Cassini_boom_02.obj",
+      "object_name": "Cassini_boom_02",
+      "source": "/kubric/assets/Cassini/boom_02.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_boom_02/Cassini_boom_02.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_bottom",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_bottom --asset-dir /kubric/assets/Cassini_components/Cassini_bottom",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_bottom/Cassini_bottom.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_bottom/Cassini_bottom.obj",
+      "object_name": "Cassini_bottom",
+      "source": "/kubric/assets/Cassini/bottom.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_bottom/Cassini_bottom.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_bracket",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_bracket --asset-dir /kubric/assets/Cassini_components/Cassini_bracket",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_bracket/Cassini_bracket.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_bracket/Cassini_bracket.obj",
+      "object_name": "Cassini_bracket",
+      "source": "/kubric/assets/Cassini/bracket.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_bracket/Cassini_bracket.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_bus_01",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_bus_01 --asset-dir /kubric/assets/Cassini_components/Cassini_bus_01",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_bus_01/Cassini_bus_01.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_bus_01/Cassini_bus_01.obj",
+      "object_name": "Cassini_bus_01",
+      "source": "/kubric/assets/Cassini/bus_01.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_bus_01/Cassini_bus_01.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_bus_02",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_bus_02 --asset-dir /kubric/assets/Cassini_components/Cassini_bus_02",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_bus_02/Cassini_bus_02.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_bus_02/Cassini_bus_02.obj",
+      "object_name": "Cassini_bus_02",
+      "source": "/kubric/assets/Cassini/bus_02.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_bus_02/Cassini_bus_02.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_bus_top",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_bus_top --asset-dir /kubric/assets/Cassini_components/Cassini_bus_top",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_bus_top/Cassini_bus_top.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_bus_top/Cassini_bus_top.obj",
+      "object_name": "Cassini_bus_top",
+      "source": "/kubric/assets/Cassini/bus_top.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_bus_top/Cassini_bus_top.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_dish",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_dish --asset-dir /kubric/assets/Cassini_components/Cassini_dish",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_dish/Cassini_dish.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_dish/Cassini_dish.obj",
+      "object_name": "Cassini_dish",
+      "source": "/kubric/assets/Cassini/dish.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_dish/Cassini_dish.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_huygens_01",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_huygens_01 --asset-dir /kubric/assets/Cassini_components/Cassini_huygens_01",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_huygens_01/Cassini_huygens_01.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_huygens_01/Cassini_huygens_01.obj",
+      "object_name": "Cassini_huygens_01",
+      "source": "/kubric/assets/Cassini/huygens_01.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_huygens_01/Cassini_huygens_01.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_huygens_02",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_huygens_02 --asset-dir /kubric/assets/Cassini_components/Cassini_huygens_02",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_huygens_02/Cassini_huygens_02.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_huygens_02/Cassini_huygens_02.obj",
+      "object_name": "Cassini_huygens_02",
+      "source": "/kubric/assets/Cassini/huygens_02.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_huygens_02/Cassini_huygens_02.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_pins_2x",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_pins_2x --asset-dir /kubric/assets/Cassini_components/Cassini_pins_2x",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_pins_2x/Cassini_pins_2x.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_pins_2x/Cassini_pins_2x.obj",
+      "object_name": "Cassini_pins_2x",
+      "source": "/kubric/assets/Cassini/pins_2x.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_pins_2x/Cassini_pins_2x.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/Cassini_components/Cassini_RTG_3",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Cassini_RTG_3 --asset-dir /kubric/assets/Cassini_components/Cassini_RTG_3",
+      "mtl": "/kubric/assets/Cassini_components/Cassini_RTG_3/Cassini_RTG_3.mtl",
+      "obj": "/kubric/assets/Cassini_components/Cassini_RTG_3/Cassini_RTG_3.obj",
+      "object_name": "Cassini_RTG_3",
+      "source": "/kubric/assets/Cassini/RTG_3.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Cassini_components/Cassini_RTG_3/Cassini_RTG_3.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Azimuth_track",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Azimuth_track --asset-dir /kubric/assets/DSS_components/DSS_Azimuth_track",
+      "mtl": "/kubric/assets/DSS_components/DSS_Azimuth_track/DSS_Azimuth_track.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Azimuth_track/DSS_Azimuth_track.obj",
+      "object_name": "DSS_Azimuth_track",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Azimuth track.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Azimuth_track/DSS_Azimuth_track.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Elevation_assembly",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Elevation_assembly --asset-dir /kubric/assets/DSS_components/DSS_Elevation_assembly",
+      "mtl": "/kubric/assets/DSS_components/DSS_Elevation_assembly/DSS_Elevation_assembly.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Elevation_assembly/DSS_Elevation_assembly.obj",
+      "object_name": "DSS_Elevation_assembly",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Elevation assembly.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Elevation_assembly/DSS_Elevation_assembly.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Lower_alidade",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Lower_alidade --asset-dir /kubric/assets/DSS_components/DSS_Lower_alidade",
+      "mtl": "/kubric/assets/DSS_components/DSS_Lower_alidade/DSS_Lower_alidade.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Lower_alidade/DSS_Lower_alidade.obj",
+      "object_name": "DSS_Lower_alidade",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Lower alidade.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Lower_alidade/DSS_Lower_alidade.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Main_reflector",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Main_reflector --asset-dir /kubric/assets/DSS_components/DSS_Main_reflector",
+      "mtl": "/kubric/assets/DSS_components/DSS_Main_reflector/DSS_Main_reflector.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Main_reflector/DSS_Main_reflector.obj",
+      "object_name": "DSS_Main_reflector",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Main reflector.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Main_reflector/DSS_Main_reflector.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Quadrapod",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Quadrapod --asset-dir /kubric/assets/DSS_components/DSS_Quadrapod",
+      "mtl": "/kubric/assets/DSS_components/DSS_Quadrapod/DSS_Quadrapod.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Quadrapod/DSS_Quadrapod.obj",
+      "object_name": "DSS_Quadrapod",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Quadrapod.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Quadrapod/DSS_Quadrapod.urdf"
+    },
+    {
+      "asset_dir": "/kubric/assets/DSS_components/DSS_Upper_alidade",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name DSS_Upper_alidade --asset-dir /kubric/assets/DSS_components/DSS_Upper_alidade",
+      "mtl": "/kubric/assets/DSS_components/DSS_Upper_alidade/DSS_Upper_alidade.mtl",
+      "obj": "/kubric/assets/DSS_components/DSS_Upper_alidade/DSS_Upper_alidade.obj",
+      "object_name": "DSS_Upper_alidade",
+      "source": "/kubric/assets/Deep_Space_Station_Antenna/Upper alidade.stl",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/DSS_components/DSS_Upper_alidade/DSS_Upper_alidade.urdf"
+    }
+  ]
+}

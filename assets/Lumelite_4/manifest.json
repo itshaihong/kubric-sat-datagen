@@ -1,0 +1,19 @@
+{
+  "asset_count": 1,
+  "assets": [
+    {
+      "asset_dir": "/kubric/assets/Lumelite_4_Coarse_Resolution_Rev3_from_stl",
+      "conversion": {
+        "status": "converted",
+        "textures": {}
+      },
+      "generate_spacecraft_args": "--object-name Lumelite_4_Coarse_Resolution_Rev3 --asset-dir /kubric/assets/Lumelite_4_Coarse_Resolution_Rev3_from_stl",
+      "mtl": "/kubric/assets/Lumelite_4_Coarse_Resolution_Rev3_from_stl/Lumelite_4_Coarse_Resolution_Rev3.mtl",
+      "obj": "/kubric/assets/Lumelite_4_Coarse_Resolution_Rev3_from_stl/Lumelite_4_Coarse_Resolution_Rev3.obj",
+      "object_name": "Lumelite_4_Coarse_Resolution_Rev3",
+      "source": "/kubric/assets/Lumelite 4_Coarse Resolution_Rev3.STL",
+      "source_kind": "stl",
+      "urdf": "/kubric/assets/Lumelite_4_Coarse_Resolution_Rev3_from_stl/Lumelite_4_Coarse_Resolution_Rev3.urdf"
+    }
+  ]
+}
