@@ -1,6 +1,5 @@
 output/
 __pycache__/
-*.png
 *.tiff
 *.flo
 *.json
@@ -10,3 +9,4 @@ __pycache__/
 *.zip
 FastSAM/
 assets/raw/
+.hf_upload/
