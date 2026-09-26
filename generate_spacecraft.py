@@ -649,14 +649,17 @@ def write_rgb_batch(rgb_frames, output_dir, start_index=0):
         Image.fromarray(frame[..., :3], mode="RGB").save(
             os.path.join(output_dir, f"{frame_idx:06d}.png"))
 
-def write_tiff_depth_batch(depth_f64, output_dir, start_index=0):
+def write_png_depth_batch(depth_m, output_dir, start_index=0):
+    """Write depth as uint16 PNG in millimetres; 0 marks invalid/out-of-range."""
     os.makedirs(output_dir, exist_ok=True)
-    for i, frame in enumerate(depth_f64):
+    for i, frame in enumerate(depth_m):
         frame_idx = start_index + i
-        imageio.imwrite(
-            os.path.join(output_dir, f"{frame_idx:06d}.tiff"),
-            frame.squeeze().astype(np.float64),
-            format="tiff")
+        depth = np.asarray(frame).squeeze().astype(np.float32)
+        valid = np.isfinite(depth) & (depth > 0.0) & (depth < 65.535)
+        depth_mm = np.zeros(depth.shape, dtype=np.uint16)
+        depth_mm[valid] = np.round(depth[valid] * 1000.0).astype(np.uint16)
+        Image.fromarray(depth_mm, mode="I;16").save(
+            os.path.join(output_dir, f"{frame_idx:06d}.png"))
 
 def write_segmentation_batch(seg_frames, output_dir, debug_dir=None, start_index=0):
     """Write Kubric renderer segmentation IDs and return foreground pixel counts."""
@@ -1177,7 +1180,6 @@ def main():
 
     os.makedirs(f"{output_dir}/image/",    exist_ok=True)
     os.makedirs(f"{output_dir}/depth/",    exist_ok=True)
-    os.makedirs(f"{output_dir}/flow/",     exist_ok=True)
     os.makedirs(f"{output_dir}/seg/",      exist_ok=True)
     os.makedirs(f"{output_dir}/seg_debug/", exist_ok=True)
     os.makedirs(f"{output_dir}/tmp/",      exist_ok=True)
@@ -1477,10 +1479,9 @@ def main():
             valid_count += int(valid_values.size)
         total_count += int(depth_clamped.size)
 
-        print(f"[Export] Writing chunk {chunk_start}-{chunk_end} RGB, depth, flow ...")
+        print(f"[Export] Writing chunk {chunk_start}-{chunk_end} RGB and depth ...")
         write_rgb_batch(frames_dict["rgba"], f"{output_dir}/image/", start_index=chunk_offset)
-        write_tiff_depth_batch(depth_f64, f"{output_dir}/depth/", start_index=chunk_offset)
-        write_flo_batch(frames_dict["forward_flow"], f"{output_dir}/flow/", start_index=chunk_offset)
+        write_png_depth_batch(depth_f64, f"{output_dir}/depth/", start_index=chunk_offset)
         if "segmentation" in frames_dict:
             mask_areas.extend(write_segmentation_batch(
                 frames_dict["segmentation"],
