@@ -183,8 +183,13 @@ def parse_args():
     parser.add_argument("--object-name", default="Cheops", help="Base object filename without extension.")
     parser.add_argument("--asset-dir", default=None, help="Asset directory containing OBJ, MTL, textures, and URDF.")
     parser.add_argument("--output-dir", default=None, help="Output directory for rendered dataset.")
+    parser.add_argument("--resolution-width", type=int, default=1920, help="Rendered image width in pixels.")
+    parser.add_argument("--resolution-height", type=int, default=1200, help="Rendered image height in pixels.")
     parser.add_argument("--render-chunk-size", type=int, default=120, help="Number of frames rendered/postprocessed at once. Keeps long sequences from loading all frames into RAM.")
     parser.add_argument("--max-render-chunks", type=int, default=None, help="Stop after this many rendered chunks. Useful for pilot previews.")
+    parser.add_argument("--save-blend", action="store_true", help="Save blender_scene.blend for debugging. Disabled by default to reduce output size.")
+    parser.add_argument("--write-seg-debug", action="store_true", help="Write binary seg_debug PNG previews. Disabled by default to reduce output size.")
+    parser.add_argument("--write-flow", action="store_true", help="Write optical flow .flo files. Disabled by default to reduce output size.")
     parser.add_argument("--linear-velocity-mps", nargs=3, type=float, default=DEFAULT_LINEAR_VELOCITY_MPS, metavar=("X", "Y", "Z"), help="Satellite linear velocity in metres per second.")
     parser.add_argument("--angular-velocity-dps", nargs=3, type=float, default=DEFAULT_ANGULAR_VELOCITY_DPS, metavar=("X", "Y", "Z"), help="Satellite angular velocity in degrees per second.")
     parser.add_argument("--linear-velocity", nargs=3, type=float, default=None, metavar=("X", "Y", "Z"), help="Deprecated: satellite linear velocity in metres per frame. Converted to m/s using --fps.")
@@ -1152,6 +1157,8 @@ def main():
         raise ValueError("--duration-seconds must be > 0")
     if args.render_chunk_size < 1:
         raise ValueError("--render-chunk-size must be >= 1")
+    if args.resolution_width < 1 or args.resolution_height < 1:
+        raise ValueError("--resolution-width and --resolution-height must be >= 1")
     if args.max_render_chunks is not None and args.max_render_chunks < 1:
         raise ValueError("--max-render-chunks must be >= 1 when set")
 
@@ -1181,15 +1188,17 @@ def main():
     os.makedirs(f"{output_dir}/image/",    exist_ok=True)
     os.makedirs(f"{output_dir}/depth/",    exist_ok=True)
     os.makedirs(f"{output_dir}/seg/",      exist_ok=True)
-    os.makedirs(f"{output_dir}/seg_debug/", exist_ok=True)
+    if args.write_flow:
+        os.makedirs(f"{output_dir}/flow/", exist_ok=True)
+    if args.write_seg_debug:
+        os.makedirs(f"{output_dir}/seg_debug/", exist_ok=True)
     os.makedirs(f"{output_dir}/tmp/",      exist_ok=True)
 
     # -------------------------------------------------------------------------
     # 1. SCENE
     # -------------------------------------------------------------------------
     scene = kb.Scene(
-        resolution=(1920, 1200),    # Point Grey Grasshopper 3 native resolution
-                                    # Ref: SPEED-UE-Cube paper, Section "Camera Effects"
+        resolution=(args.resolution_width, args.resolution_height),
         frame_start=frame_start,
         frame_end=frame_end,
         frame_rate=args.fps,
@@ -1433,7 +1442,8 @@ def main():
     # 9. RUN RENDERING (Blender)
     # -------------------------------------------------------------------------
     print("[Render] Running Blender renderer in chunks...")
-    renderer.save_state(f"{output_dir}/blender_scene.blend")   # save for debugging
+    if args.save_blend:
+        renderer.save_state(f"{output_dir}/blender_scene.blend")   # save for debugging
 
     depth_sum = 0.0
     depth_min = np.inf
@@ -1482,11 +1492,16 @@ def main():
         print(f"[Export] Writing chunk {chunk_start}-{chunk_end} RGB and depth ...")
         write_rgb_batch(frames_dict["rgba"], f"{output_dir}/image/", start_index=chunk_offset)
         write_png_depth_batch(depth_f64, f"{output_dir}/depth/", start_index=chunk_offset)
+        if args.write_flow:
+            if "forward_flow" in frames_dict:
+                write_flo_batch(frames_dict["forward_flow"], f"{output_dir}/flow/", start_index=chunk_offset)
+            else:
+                print("[Export] forward_flow buffer not present in renderer output; skipping flow.")
         if "segmentation" in frames_dict:
             mask_areas.extend(write_segmentation_batch(
                 frames_dict["segmentation"],
                 f"{output_dir}/seg/",
-                debug_dir=f"{output_dir}/seg_debug/",
+                debug_dir=f"{output_dir}/seg_debug/" if args.write_seg_debug else None,
                 start_index=chunk_offset,
             ))
             for seg_frame in frames_dict["segmentation"]:
@@ -1598,9 +1613,14 @@ def main():
             "num_frames": num_frames,
             "fps": args.fps,
             "duration_seconds": num_frames / args.fps,
+            "resolution_width": args.resolution_width,
+            "resolution_height": args.resolution_height,
             "render_chunk_size": args.render_chunk_size,
             "max_render_chunks": args.max_render_chunks,
             "exported_frames": export_num_frames,
+            "save_blend": args.save_blend,
+            "write_seg_debug": args.write_seg_debug,
+            "write_flow": args.write_flow,
             "trajectory_mode": args.trajectory_mode,
             "camera_position": camera_positions[0].tolist(),
             "look_at": camera_look_ats[0].tolist(),
